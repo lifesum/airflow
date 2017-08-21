@@ -73,6 +73,7 @@ from airflow.utils.dates import cron_presets, date_range as utils_date_range
 from airflow.utils.db import provide_session
 from airflow.utils.decorators import apply_defaults
 from airflow.utils.email import send_email
+from airflow.utils.sentry import send_msg_to_sentry
 from airflow.utils.helpers import (
     as_tuple, is_container, is_in, validate_key, pprinttable)
 from airflow.utils.operator_resources import Resources
@@ -1616,6 +1617,9 @@ class TaskInstance(Base, LoggingMixin):
                 self.log.info('Marking task as UP_FOR_RETRY')
                 if task.email_on_retry and task.email:
                     self.email_alert(error, is_retry=True)
+                # send sentry notification on retries
+                if task.sentry_notify_on_retry:
+                    self.sentry_alert(error, is_retry=True)
             else:
                 self.state = State.FAILED
                 if task.retries:
@@ -1624,6 +1628,9 @@ class TaskInstance(Base, LoggingMixin):
                     self.log.info('Marking task as FAILED.')
                 if task.email_on_failure and task.email:
                     self.email_alert(error, is_retry=False)
+                # send sentry notification on failure
+                if task.sentry_notify_on_failure:
+                    self.sentry_alert(error, is_retry=False)
         except Exception as e2:
             self.log.error('Failed to send email to: %s', task.email)
             self.log.exception(e2)
@@ -1777,6 +1784,24 @@ class TaskInstance(Base, LoggingMixin):
             "Mark success: <a href='{self.mark_success_url}'>Link</a><br>"
         ).format(try_number=self.try_number, max_tries=self.max_tries + 1, **locals())
         send_email(task.email, title, body)
+
+    def sentry_alert(self, exception, is_retry=False):
+        """
+        send an alert to sentry
+        """
+        task = self.task
+        exception = str(exception).replace('\n', '<br>')
+        try_ = task.retries + 1
+        body = (
+            "Airflow alert: {self}"
+            "Try {self.try_number} out of {try_}<br>"
+            "Exception:<br>{exception}<br>"
+            "Log: <a href='{self.log_url}'>Link</a><br>"
+            "Host: {self.hostname}<br>"
+            "Log file: {self.log_filepath}<br>"
+            "Mark success: <a href='{self.mark_success_url}'>Link</a><br>"
+        ).format(**locals())
+        send_msg_to_sentry(body)
 
     def set_duration(self):
         if self.end_date and self.start_date:
@@ -2121,6 +2146,8 @@ class BaseOperator(LoggingMixin):
             email=None,
             email_on_retry=True,
             email_on_failure=True,
+            sentry_notify_on_retry=True,
+            sentry_notify_on_failure=True,
             retries=0,
             retry_delay=timedelta(seconds=300),
             retry_exponential_backoff=False,
@@ -2166,6 +2193,8 @@ class BaseOperator(LoggingMixin):
         self.email = email
         self.email_on_retry = email_on_retry
         self.email_on_failure = email_on_failure
+        self.sentry_notify_on_retry = sentry_notify_on_retry,
+        self.sentry_notify_on_failure = sentry_notify_on_failure
         self.start_date = start_date
         if start_date and not isinstance(start_date, datetime):
             self.log.warning("start_date for %s isn't datetime.datetime", self)
@@ -2228,6 +2257,8 @@ class BaseOperator(LoggingMixin):
             'owner',
             'email',
             'email_on_retry',
+            'sentry_notify_on_retry',
+            'sentry_notify_on_failure',
             'retry_delay',
             'retry_exponential_backoff',
             'max_retry_delay',
