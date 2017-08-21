@@ -55,6 +55,7 @@ from airflow.utils.dag_processing import (AbstractDagFileProcessor,
                                           SimpleDagBag,
                                           list_py_file_paths)
 from airflow.utils.email import send_email
+from airflow.utils.sentry import send_msg_to_sentry
 from airflow.utils.logging import LoggingMixin
 from airflow.utils import asciiart
 

@@ -72,6 +72,7 @@ from airflow.utils.dates import cron_presets, date_range as utils_date_range
 from airflow.utils.db import provide_session
 from airflow.utils.decorators import apply_defaults
 from airflow.utils.email import send_email
+from airflow.utils.sentry import send_msg_to_sentry
 from airflow.utils.helpers import (
     as_tuple, is_container, is_in, validate_key, pprinttable)
 from airflow.utils.logging import LoggingMixin
@@ -1443,6 +1444,9 @@ class TaskInstance(Base):
                 logging.info('Marking task as UP_FOR_RETRY')
                 if task.email_on_retry and task.email:
                     self.email_alert(error, is_retry=True)
+                # send sentry notification on retries
+                if task.sentry_notify_on_retry:
+                    self.sentry_alert(error, is_retry=True)
             else:
                 self.state = State.FAILED
                 if task.retries:
@@ -1451,6 +1455,9 @@ class TaskInstance(Base):
                     logging.info('Marking task as FAILED.')
                 if task.email_on_failure and task.email:
                     self.email_alert(error, is_retry=False)
+                # send sentry notification on failure
+                if task.sentry_notify_on_failure:
+                    self.sentry_alert(error, is_retry=False)
         except Exception as e2:
             logging.error(
                 'Failed to send email to: ' + str(task.email))
@@ -1603,6 +1610,24 @@ class TaskInstance(Base):
             "Mark success: <a href='{self.mark_success_url}'>Link</a><br>"
         ).format(**locals())
         send_email(task.email, title, body)
+
+    def sentry_alert(self, exception, is_retry=False):
+        """
+        send an alert to sentry
+        """
+        task = self.task
+        exception = str(exception).replace('\n', '<br>')
+        try_ = task.retries + 1
+        body = (
+            "Airflow alert: {self}"
+            "Try {self.try_number} out of {try_}<br>"
+            "Exception:<br>{exception}<br>"
+            "Log: <a href='{self.log_url}'>Link</a><br>"
+            "Host: {self.hostname}<br>"
+            "Log file: {self.log_filepath}<br>"
+            "Mark success: <a href='{self.mark_success_url}'>Link</a><br>"
+        ).format(**locals())
+        send_msg_to_sentry(body)
 
     def set_duration(self):
         if self.end_date and self.start_date:
