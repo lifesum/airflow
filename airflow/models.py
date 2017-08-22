@@ -1924,6 +1924,8 @@ class BaseOperator(object):
             email=None,
             email_on_retry=True,
             email_on_failure=True,
+            sentry_notify_on_retry=True,
+            sentry_notify_on_failure=True,
             retries=0,
             retry_delay=timedelta(seconds=300),
             retry_exponential_backoff=False,
@@ -1968,6 +1970,8 @@ class BaseOperator(object):
         self.email = email
         self.email_on_retry = email_on_retry
         self.email_on_failure = email_on_failure
+        self.sentry_notify_on_retry = sentry_notify_on_retry,
+        self.sentry_notify_on_failure = sentry_notify_on_failure
         self.start_date = start_date
         if start_date and not isinstance(start_date, datetime):
             logging.warning(
@@ -2028,6 +2032,7 @@ class BaseOperator(object):
             'owner',
             'email',
             'email_on_retry',
+            'sentry_notify_on_retry',
             'retry_delay',
             'retry_exponential_backoff',
             'max_retry_delay',
