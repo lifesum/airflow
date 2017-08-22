@@ -13,4 +13,4 @@
 # limitations under the License.
 #
 
-version = '1.8.0+apache.incubating'
+version = 'lifeflow1.0'
