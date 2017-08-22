@@ -283,7 +283,7 @@ email_backend = airflow.utils.email.send_email_smtp
 # If you want to send logging on retries, failure you need to specify 
 # you sentry key here
 sentry_key= https://da5e36de5c7646a9be2c2e5e0ba00986:715ed09781854df7bfd4829f2d3f6d94@sentry.io/143739
-
+sentry_environment = staging
 [smtp]
 # If you want airflow to send emails on retries, failure, and you want to use
 # the airflow.utils.email.send_email_smtp function, you have to configure an
@@ -485,6 +485,7 @@ email_backend = airflow.utils.email.send_email_smtp
 
 [sentry]
 sentry_key = https://da5e36de5c7646a9be2c2e5e0ba00986:715ed09781854df7bfd4829f2d3f6d94@sentry.io/143445
+sentry_environment = staging
 
 [smtp]
 smtp_host = localhost
