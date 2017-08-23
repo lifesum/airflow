@@ -27,30 +27,55 @@ from airflow import configuration
 from airflow.exceptions import AirflowConfigException
 
 
-def get_sentry_client():
+def _get_config(section, key):
+    """
+    Get airflow key from the configurtion section
+    :param section: configuration section
+    :type section: string
+    :param key: key in airflow configuration
+    :type key: string
+    :returns string
+    """
+    value = None
+    try:
+        value = configuration.get(section, key)
+    except AirflowConfigException as ex:
+        logging.debug(
+            "Error getting key %s from section %s. Reason: %s", key, section, str(ex))
+    return value
+
+
+def get_sentry_client(sentry_dsn='', environment=''):
     """
     Method that create a sentry client and return it
+    :param sentry_dsn: Sentry DSN
+    :type sentry_dsn: string
+    :param environment: sentry environment
+    :type environment: string
     :return: Object -- sentry client
     """
-    client = None
-    try:
-        sentry_dsn_key = configuration.get("sentry", "SENTRY_KEY")
-        sentry_env = configuration.get("sentry", "SENTRY_ENVIRONMENT")
-        client = sentry_client(sentry_dsn_key, environment=sentry_env)
-    except AirflowConfigException:
-        logging.debug("Sentry DSN is not found in the configuration")
+    if not sentry_dsn:
+        sentry_dsn = _get_config("sentry", "SENTRY_DSN")
+    if not environment:
+        environment = _get_config("sentry", "SENTRY_ENVIRONMENT")
+    client = sentry_client(sentry_dsn, environment=environment)
     return client
 
 
-def send_msg_to_sentry(msg):
+def send_msg_to_sentry(msg, environment='', level='error'):
     """
     Method that propagate(send) message to sentry
-    :param client: object -- sentry client object
-    :param msg: string -- message
+    :param msg: sentry message
+    :type msg: string 
+    :param environment: sentry environment
+    :type environment: string
+    :param level: level of the message (fatal, error, warning, debug)
+    :type level: string
     :return: None
     """
-    client = get_sentry_client()
+    client = get_sentry_client(msg, environment=environment)
     if not client:
-        logging.warning("Sentry client is not found, please check sentry configuration")
+        logging.warning(
+            "Sentry client is not found, please check sentry configuration")
         return
-    sentry_client.captureMessage(msg)
+    sentry_client.captureMessage(msg, level=level)
