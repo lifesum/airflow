@@ -78,4 +78,3 @@ def send_msg_to_sentry(msg, environment='', level='fatal'):
         client.captureMessage(message=msg, level=level)
     except Exception as ex:
         logging.error("Failed to send message to sentry. Reason: %s", str(ex))
-        
