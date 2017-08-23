@@ -73,7 +73,7 @@ def send_msg_to_sentry(msg, environment='', level='error'):
     :type level: string
     :return: None
     """
-    client = get_sentry_client(msg, environment=environment)
+    client = get_sentry_client()
     if not client:
         logging.warning(
             "Sentry client is not found, please check sentry configuration")
