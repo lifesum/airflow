@@ -62,20 +62,20 @@ def get_sentry_client(sentry_dsn='', environment=''):
     return client
 
 
-def send_msg_to_sentry(msg, environment='', level='error'):
+def send_msg_to_sentry(msg, environment='', level='fatal'):
     """
     Method that propagate(send) message to sentry
     :param msg: sentry message
-    :type msg: string 
+    :type msg: string
     :param environment: sentry environment
     :type environment: string
     :param level: level of the message (fatal, error, warning, debug)
     :type level: string
     :return: None
     """
-    client = get_sentry_client()
-    if not client:
-        logging.warning(
-            "Sentry client is not found, please check sentry configuration")
-        return
-    sentry_client.captureMessage(msg, level=level)
+    client = get_sentry_client(environment=environment)
+    try:
+        client.captureMessage(message=msg, level=level)
+    except Exception as ex:
+        logging.error("Failed to send message to sentry. Reason: %s", str(ex))
+        
