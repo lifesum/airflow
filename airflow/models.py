@@ -2023,6 +2023,7 @@ class BaseOperator(object):
             'email',
             'email_on_retry',
             'sentry_notify_on_retry',
+            'sentry_notify_on_failure',
             'retry_delay',
             'retry_exponential_backoff',
             'max_retry_delay',

@@ -21,7 +21,10 @@ from __future__ import unicode_literals
 
 import logging
 
-from raven import Client as sentry_client
+try:
+    from raven import Client as sentry_client
+except ImportError:
+    logging.info("raven is not installed.")
 
 from airflow import configuration
 from airflow.exceptions import AirflowConfigException
