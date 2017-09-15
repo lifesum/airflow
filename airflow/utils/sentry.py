@@ -20,64 +20,89 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import logging
+from airflow import configuration, __version__
+from airflow.exceptions import AirflowConfigException
 
+HAS_RAVEN = False
 try:
-    from raven import Client as sentry_client
+    from raven import Client
+    HAS_RAVEN = True
 except ImportError:
     logging.info("raven is not installed.")
 
-from airflow import configuration
-from airflow.exceptions import AirflowConfigException
 
-
-def _get_config(section, key):
+def get_sentry_client(dsn=None, site=None, name=None, release=None,
+                      environment=None, tags=None, **kwargs):
     """
-    Get airflow key from the configurtion section
-    :param section: configuration section
-    :type section: string
-    :param key: key in airflow configuration
-    :type key: string
-    :returns string
-    """
-    value = None
-    try:
-        value = configuration.get(section, key)
-    except AirflowConfigException as ex:
-        logging.debug(
-            "Error getting key %s from section %s. Reason: %s", key, section, str(ex))
-    return value
+    Create a sentry client and return it. Options are taken (in order) from function arguments,
+    environment variables (`AIRFLOW__SENTRY__SENTRY_DSN`) or airflow.cfg ([sentry];sentry_dsn=...)
 
-
-def get_sentry_client(sentry_dsn='', environment=''):
-    """
-    Method that create a sentry client and return it
-    :param sentry_dsn: Sentry DSN
-    :type sentry_dsn: string
-    :param environment: sentry environment
-    :type environment: string
+    :param dsn: Sentry DSN secret
+    :param site: String identifying the installation
+    :param name: Overrides the servers hostname if specified
+    :param release: Version string; defaults to airflow.__version__
+    :param environment: Environment string, eg staging or production
+    :param tags: Dictionary of default tag:value pairs (merged when sending a message)
+    :param kwargs: Extra arguments are passed to raven.Client()
     :return: Object -- sentry client
     """
-    if not sentry_dsn:
-        sentry_dsn = _get_config("sentry", "SENTRY_DSN")
-    if not environment:
-        environment = _get_config("sentry", "SENTRY_ENVIRONMENT")
-    client = sentry_client(sentry_dsn, environment=environment)
-    return client
+
+    def try_get_config(k):
+        try:
+            return configuration.get("sentry", "sentry_{}".format(k))
+        except AirflowConfigException:
+            pass
+
+    if dsn is None:
+        dsn = try_get_config("dsn")
+    if site is None:
+        site = try_get_config("site")
+    if name is None:
+        name = try_get_config("name")
+    if release is None:
+        release = try_get_config("release")
+        if release is None:
+            release = __version__
+    if environment is None:
+        environment = try_get_config("environment")
+    # tags is a dictionary and cannot be fetched from env/config
+
+    return Client(dsn=dsn, site=site, name=name, release=release,
+                  environment=environment, tags=tags, **kwargs)
 
 
-def send_msg_to_sentry(msg, environment='', level='fatal'):
+def send_msg_to_sentry(message, level="info", extra=None, tags=None, fingerprint=None,
+                       culprit=None, time_spent=None, sentry_kwargs=None, **kwargs):
     """
-    Method that propagate(send) message to sentry
-    :param msg: sentry message
-    :type msg: string
-    :param environment: sentry environment
-    :type environment: string
-    :param level: level of the message (fatal, error, warning, debug)
-    :type level: string
+    Send a message to sentry.
+
+    In addition to the message, the following parameters can be provided:
+     - level: fatal, error, warning, info, debug
+     - tags: dict of tag: value pairs
+     - environment: current env - eg, staging
+     - modules: dict of module: version pairs, for relevant software versions
+     - fingerprint: list of strings used to hierarchically classify events
+     - extra: dict of arbitrary metadata
+    :param message: sentry message
+    :type message: string
+    :param level: logging level - fatal, error, warning, info, debug
+    :param extra: dict of metadata to pass with this message
+    :param tags: dict of tags to pass with this message
+    :param fingerprint: list of strings for use in hierarchically categorising the error
+    :param sentry_kwargs: dict of parameters to sentry.Client
+    :param time_spent: integer number of milliseconds for the duration of the error
+    :param sentry_kwargs: dictionary of keyword arguments to sentry.Client
+    :param kwargs: extra arguments are passed to captureMessage()
     :return: None
     """
-    client = get_sentry_client(environment=environment)
+    if not HAS_RAVEN:
+        return
+
+    if sentry_kwargs is None:
+        sentry_kwargs = {}
     try:
-        client.captureMessage(message=msg, level=level)
+        client = get_sentry_client(**sentry_kwargs)
+        client.captureMessage(message=message, level=level, extra=extra, tags=tags,
+                              fingerprint=fingerprint, time_spent=time_spent, **kwargs)
     except Exception as ex:
         logging.error("Failed to send message to sentry. Reason: %s", str(ex))
