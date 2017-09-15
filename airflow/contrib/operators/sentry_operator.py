@@ -26,28 +26,30 @@ class SentryOperator(BaseOperator):
     Notification level is fatal by default
 
     :param message: sentry notification message
-    :type message: string
     :param level: notification level (fatal, error, warning, info, debug)
-    :type level: string
-    :param sentry_kwargs: dict of arguments to raven.Client (eg, "dsn")
-    :param message_kwargs: dict of arguments to sendMessage (eg, "fingerprint")
+    :param tags: dictionary of tag:value pairs
+    :param environment: environment string, eg staging
+    :param extra: dictionary of key:value metadata pairs
+    :param fingerprint: list of strings for use in hierarchically categorising the error
+    :param dsn: Sentry DSN (to allow this operator to be used without [sentry] in airflow.cfg)
     """
 
-    template_fields = ('message', )
+    template_fields = ('message', 'environment', 'tags', 'extra')
     ui_color = '#e6faf9'
 
     @apply_defaults
-    def __init__(self, message, level='info',
-                 sentry_kwargs=None, message_kwargs=None,
-                 *args, **kwargs):
+    def __init__(self, message, level='info', tags=None, environment=None, extra=None,
+                 fingerprint=None, dsn=None, *args, **kwargs):
         super(SentryOperator, self).__init__(*args, **kwargs)
         self.message = message
         self.level = level
-        self.sentry_kwargs = sentry_kwargs
-        self.message_kwargs = message_kwargs
-        if message_kwargs is None:
-            self.message_kwargs = {}
+        self.tags = tags
+        self.environment = environment
+        self.extra = extra
+        self.fingerprint = fingerprint
+        self.dsn = dsn
 
     def execute(self, context):
-        send_msg_to_sentry(message=self.message, level=self.level,
-                           sentry_kwargs=self.sentry_kwargs, **self.message_kwargs)
+        send_msg_to_sentry(message=self.message, level=self.level, tags=self.tags,
+                           environment=self.environment, extra=self.extra,
+                           fingerprint=self.fingerprint, sentry_kwargs=dict(dsn=self.dsn))
