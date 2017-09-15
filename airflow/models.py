@@ -1619,10 +1619,9 @@ class TaskInstance(Base):
         exception = str(exception)
         qualname = ".".join([self.dag_id, self.task_id])
         status = "Retrying" if is_retry else "Failed"
-        message = "{status}}: {qualname}: {exception}".format(**locals())
+        message = "{status}: {qualname}: {exception}".format(**locals())
         message_kwargs = {
             "level": "warning" if is_retry else "error",
-            "culprit": qualname,
             "fingerprint": [
                 self.dag_id,
                 self.task_id,
@@ -1636,8 +1635,10 @@ class TaskInstance(Base):
                 "duration": self.duration,
                 "started": self.start_date,
                 "ended": self.end_date,
-                "execution_date": self.execution_date
-            }
+                "execution_date": self.execution_date,
+                "operator": type(self.task).__name__,
+            },
+            "time_spent": int(self.duration * 1000)
         }
         send_msg_to_sentry(message=message, **message_kwargs)
 
