@@ -25,34 +25,29 @@ class SentryOperator(BaseOperator):
     Send sentry notification
     Notification level is fatal by default
 
-    :param sentry_dsn: sentry DSN
-    :type sentry_dsn: string 
     :param message: sentry notification message
     :type message: string
-    :param environment: sentry environment
-    :type environment: string
-    :param level: notification level (fatal, error, warning, debug)
+    :param level: notification level (fatal, error, warning, info, debug)
     :type level: string
+    :param sentry_kwargs: dict of arguments to raven.Client (eg, "dsn")
+    :param message_kwargs: dict of arguments to sendMessage (eg, "fingerprint")
     """
 
-    template_fields = ('message',)
-    template_ext = ('.html',)
+    template_fields = ('message', )
     ui_color = '#e6faf9'
 
     @apply_defaults
-    def __init__(
-            self,
-            sentry_dsn,
-            message,
-            environment='',
-            level='fatal',
-            *args, **kwargs):
+    def __init__(self, message, level='info',
+                 sentry_kwargs=None, message_kwargs=None,
+                 *args, **kwargs):
         super(SentryOperator, self).__init__(*args, **kwargs)
-        self.sentry_dsn = sentry_dsn
         self.message = message
-        self.environment = environment
         self.level = level
-        
+        self.sentry_kwargs = sentry_kwargs
+        self.message_kwargs = message_kwargs
+        if message_kwargs is None:
+            self.message_kwargs = {}
 
     def execute(self, context):
-        send_msg_to_sentry(msg=self.message, environment=self.environment, level=self.level)
+        send_msg_to_sentry(message=self.message, level=self.level,
+                           sentry_kwargs=self.sentry_kwargs, **self.message_kwargs)
