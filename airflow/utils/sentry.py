@@ -21,6 +21,7 @@ from __future__ import unicode_literals
 
 import logging
 from airflow import configuration, __version__
+from airflow.exceptions import AirflowConfigException
 
 HAS_RAVEN = False
 try:
@@ -30,29 +31,48 @@ except ImportError:
     logging.info("raven is not installed.")
 
 
-def get_sentry_client(**kwargs):
+def get_sentry_client(dsn=None, site=None, name=None, release=None,
+                      environment=None, tags=None, **kwargs):
     """
-    Create a sentry client and return it. Options are read (in order)
-    from **kwargs, environment variables and the airflow config file.
+    Create a sentry client and return it. Options are taken (in order) from function arguments,
+    environment variables (`AIRFLOW__SENTRY__SENTRY_DSN`) or airflow.cfg ([sentry];sentry_dsn=...)
 
-    Known options: dsn, site, name, release, environment, tags
-    :param kwargs: keyword options understood by raven.Client
+    :param dsn: Sentry DSN secret
+    :param site: String identifying the installation
+    :param name: Overrides the servers hostname if specified
+    :param release: Version string; defaults to airflow.__version__
+    :param environment: Environment string, eg staging or production
+    :param tags: Dictionary of default tag:value pairs (merged when sending a message)
+    :param kwargs: Extra arguments are passed to raven.Client()
     :return: Object -- sentry client
     """
-    arg_names = ["dsn", "site", "name", "release", "environment", "tags"]
-    for arg in arg_names:
-        if arg not in kwargs:
-            config_arg_name = "sentry_{}".format(arg.upper())
-            if configuration.has_option("sentry", config_arg_name):
-                kwargs[arg] = configuration.get("sentry", config_arg_name)
 
-    if "release" not in kwargs:
-        kwargs["release"] = __version__
+    def try_get_config(k):
+        try:
+            return configuration.get_option("sentry", "sentry_{}".format(k.upper()))
+        except AirflowConfigException:
+            pass
 
-    return Client(**kwargs)
+    if dsn is None:
+        dsn = try_get_config("dsn")
+    if site is None:
+        site = try_get_config("site")
+    if name is None:
+        name = try_get_config("name")
+    if release is None:
+        release = try_get_config("release")
+        if release is None:
+            release = __version__
+    if environment is None:
+        environment = try_get_config("environment")
+    # tags is a dictionary and cannot be fetched from env/config
+
+    return Client(dsn=dsn, site=site, name=name, release=release,
+                  environment=environment, tags=tags, **kwargs)
 
 
-def send_msg_to_sentry(message, sentry_kwargs=None, **kwargs):
+def send_msg_to_sentry(message, level="info", extra=None, tags=None, fingerprint=None,
+                       culprit=None, time_spent=None, sentry_kwargs=None, **kwargs):
     """
     Send a message to sentry.
 
@@ -65,8 +85,14 @@ def send_msg_to_sentry(message, sentry_kwargs=None, **kwargs):
      - extra: dict of arbitrary metadata
     :param message: sentry message
     :type message: string
+    :param level: logging level - fatal, error, warning, info, debug
+    :param extra: dict of metadata to pass with this message
+    :param tags: dict of tags to pass with this message
+    :param fingerprint: list of strings for use in hierarchically categorising the error
     :param sentry_kwargs: dict of parameters to sentry.Client
-    :param kwargs: parameters to sentry.captureMessage
+    :param time_spent: integer number of milliseconds for the duration of the error
+    :param sentry_kwargs: dictionary of keyword arguments to sentry.Client
+    :param kwargs: extra arguments are passed to captureMessage()
     :return: None
     """
     if not HAS_RAVEN:
@@ -76,6 +102,7 @@ def send_msg_to_sentry(message, sentry_kwargs=None, **kwargs):
         sentry_kwargs = {}
     try:
         client = get_sentry_client(**sentry_kwargs)
-        client.captureMessage(message=message, **kwargs)
+        client.captureMessage(message=message, level=level, extra=extra, tags=tags,
+                              fingerprint=fingerprint, time_spent=time_spent, **kwargs)
     except Exception as ex:
         logging.error("Failed to send message to sentry. Reason: %s", str(ex))
