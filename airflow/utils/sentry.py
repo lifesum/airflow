@@ -20,64 +20,62 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import logging
+from airflow import configuration, __version__
 
+HAS_RAVEN = False
 try:
-    from raven import Client as sentry_client
+    from raven import Client
+    HAS_RAVEN = True
 except ImportError:
     logging.info("raven is not installed.")
 
-from airflow import configuration
-from airflow.exceptions import AirflowConfigException
 
-
-def _get_config(section, key):
+def get_sentry_client(**kwargs):
     """
-    Get airflow key from the configurtion section
-    :param section: configuration section
-    :type section: string
-    :param key: key in airflow configuration
-    :type key: string
-    :returns string
-    """
-    value = None
-    try:
-        value = configuration.get(section, key)
-    except AirflowConfigException as ex:
-        logging.debug(
-            "Error getting key %s from section %s. Reason: %s", key, section, str(ex))
-    return value
+    Create a sentry client and return it. Options are read (in order)
+    from **kwargs, environment variables and the airflow config file.
 
-
-def get_sentry_client(sentry_dsn='', environment=''):
-    """
-    Method that create a sentry client and return it
-    :param sentry_dsn: Sentry DSN
-    :type sentry_dsn: string
-    :param environment: sentry environment
-    :type environment: string
+    Known options: dsn, site, name, release, environment, tags
+    :param kwargs: keyword options understood by raven.Client
     :return: Object -- sentry client
     """
-    if not sentry_dsn:
-        sentry_dsn = _get_config("sentry", "SENTRY_DSN")
-    if not environment:
-        environment = _get_config("sentry", "SENTRY_ENVIRONMENT")
-    client = sentry_client(sentry_dsn, environment=environment)
-    return client
+    arg_names = ["dsn", "site", "name", "release", "environment", "tags"]
+    for arg in arg_names:
+        if arg not in kwargs:
+            config_arg_name = "sentry_{}".format(arg.upper())
+            if configuration.has_option("sentry", config_arg_name):
+                kwargs[arg] = configuration.get("sentry", config_arg_name)
+
+    if "release" not in kwargs:
+        kwargs["release"] = __version__
+
+    return Client(**kwargs)
 
 
-def send_msg_to_sentry(msg, environment='', level='fatal'):
+def send_msg_to_sentry(message, sentry_kwargs=None, **kwargs):
     """
-    Method that propagate(send) message to sentry
-    :param msg: sentry message
-    :type msg: string
-    :param environment: sentry environment
-    :type environment: string
-    :param level: level of the message (fatal, error, warning, debug)
-    :type level: string
+    Send a message to sentry.
+
+    In addition to the message, the following parameters can be provided:
+     - level: fatal, error, warning, info, debug
+     - tags: dict of tag: value pairs
+     - environment: current env - eg, staging
+     - modules: dict of module: version pairs, for relevant software versions
+     - fingerprint: list of strings used to hierarchically classify events
+     - extra: dict of arbitrary metadata
+    :param message: sentry message
+    :type message: string
+    :param sentry_kwargs: dict of parameters to sentry.Client
+    :param kwargs: parameters to sentry.captureMessage
     :return: None
     """
-    client = get_sentry_client(environment=environment)
+    if not HAS_RAVEN:
+        return
+
+    if sentry_kwargs is None:
+        sentry_kwargs = {}
     try:
-        client.captureMessage(message=msg, level=level)
+        client = get_sentry_client(**sentry_kwargs)
+        client.captureMessage(message=message, **kwargs)
     except Exception as ex:
         logging.error("Failed to send message to sentry. Reason: %s", str(ex))
