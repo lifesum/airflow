@@ -1616,18 +1616,30 @@ class TaskInstance(Base):
         send an alert to sentry
         """
         task = self.task
-        exception = str(exception).replace('\n', '<br>')
-        try_ = task.retries + 1
-        body = (
-            "Airflow alert: {self}"
-            "Try {self.try_number} out of {try_}<br>"
-            "Exception:<br>{exception}<br>"
-            "Log: <a href='{self.log_url}'>Link</a><br>"
-            "Host: {self.hostname}<br>"
-            "Log file: {self.log_filepath}<br>"
-            "Mark success: <a href='{self.mark_success_url}'>Link</a><br>"
-        ).format(**locals())
-        send_msg_to_sentry(body)
+        exception = str(exception)
+        qualname = ".".join([self.dag_id, self.task_id])
+        status = "Retrying" if is_retry else "Failed"
+        message = "{status}}: {qualname}: {exception}".format(**locals())
+        message_kwargs = {
+            "level": "warning" if is_retry else "error",
+            "culprit": qualname,
+            "fingerprint": [
+                self.dag_id,
+                self.task_id,
+                self.execution_date
+            ],
+            "extra": {
+                "try": self.try_number,
+                "max_try": self.task.retries + 1,
+                "log_url": self.log_url,
+                "mark_success_url": self.mark_success_url,
+                "duration": self.duration,
+                "started": self.start_date,
+                "ended": self.end_date,
+                "execution_date": self.execution_date
+            }
+        }
+        send_msg_to_sentry(message=message, **message_kwargs)
 
     def set_duration(self):
         if self.end_date and self.start_date:
