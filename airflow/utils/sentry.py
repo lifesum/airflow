@@ -49,7 +49,7 @@ def get_sentry_client(dsn=None, site=None, name=None, release=None,
 
     def try_get_config(k):
         try:
-            return configuration.get_option("sentry", "sentry_{}".format(k.upper()))
+            return configuration.get_option("sentry", "sentry_{}".format(k))
         except AirflowConfigException:
             pass
 
