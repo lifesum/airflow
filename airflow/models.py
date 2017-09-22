@@ -1628,8 +1628,7 @@ class TaskInstance(Base):
                 type(exception).__name__
             ],
             "extra": {
-                "try": self.try_number,
-                "max_try": self.task.retries + 1,
+                "try": [self.try_number, self.task.retries + 1],
                 "log_url": self.log_url,
                 "mark_success_url": self.mark_success_url,
                 "duration": self.duration,
