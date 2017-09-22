@@ -1625,7 +1625,7 @@ class TaskInstance(Base):
             "fingerprint": [
                 self.dag_id,
                 self.task_id,
-                self.execution_date
+                str(self.execution_date)
             ],
             "extra": {
                 "try": self.try_number,
@@ -1633,10 +1633,11 @@ class TaskInstance(Base):
                 "log_url": self.log_url,
                 "mark_success_url": self.mark_success_url,
                 "duration": self.duration,
-                "started": self.start_date,
-                "ended": self.end_date,
-                "execution_date": self.execution_date,
+                "started": str(self.start_date),
+                "ended": str(self.end_date),
+                "execution_date": str(self.execution_date),
                 "operator": type(self.task).__name__,
+                "task": [self.dag_id, self.task_id, str(self.execution_date)]
             },
             "time_spent": int(self.duration * 1000)
         }
