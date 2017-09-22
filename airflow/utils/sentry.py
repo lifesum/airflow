@@ -20,7 +20,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import logging
-from airflow import configuration, __version__
+from airflow import configuration, settings
 from airflow.exceptions import AirflowConfigException
 
 HAS_RAVEN = False
@@ -63,7 +63,7 @@ def get_sentry_client(dsn=None, site=None, name=None, release=None,
     if release is None:
         release = try_get_config("release")
         if release is None:
-            dags_folder = try_get_config("core", "dags_folder")
+            dags_folder = settings.DAGS_FOLDER
             release = fetch_git_sha(dags_folder)
     if environment is None:
         environment = try_get_config("environment")
