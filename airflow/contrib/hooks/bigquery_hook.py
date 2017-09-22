@@ -749,7 +749,7 @@ class BigQueryCursor(BigQueryBaseCursor):
         :type parameters: dict
         """
         bql = _bind_parameters(operation, parameters) if parameters else operation
-        self.job_id = self.run_query(bql)
+        self.job_id = self.run_query(bql, use_legacy_sql=False)
 
     def executemany(self, operation, seq_of_parameters):
         """
