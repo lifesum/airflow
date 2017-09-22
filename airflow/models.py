@@ -1625,7 +1625,7 @@ class TaskInstance(Base):
             "fingerprint": [
                 self.dag_id,
                 self.task_id,
-                str(self.execution_date)
+                type(exception).__name__
             ],
             "extra": {
                 "try": self.try_number,
