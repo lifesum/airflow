@@ -20,12 +20,13 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import logging
-from airflow import configuration, __version__
+from airflow import configuration, settings
 from airflow.exceptions import AirflowConfigException
 
 HAS_RAVEN = False
 try:
     from raven import Client
+    from raven.versioning import fetch_git_sha
     HAS_RAVEN = True
 except ImportError:
     logging.info("raven is not installed.")
@@ -40,7 +41,7 @@ def get_sentry_client(dsn=None, site=None, name=None, release=None,
     :param dsn: Sentry DSN secret
     :param site: String identifying the installation
     :param name: Overrides the servers hostname if specified
-    :param release: Version string; defaults to airflow.__version__
+    :param release: Version string; defaults to SHA1 hash of the HEAD git commit in dags_folder
     :param environment: Environment string, eg staging or production
     :param tags: Dictionary of default tag:value pairs (merged when sending a message)
     :param kwargs: Extra arguments are passed to raven.Client()
@@ -62,7 +63,8 @@ def get_sentry_client(dsn=None, site=None, name=None, release=None,
     if release is None:
         release = try_get_config("release")
         if release is None:
-            release = __version__
+            dags_folder = settings.DAGS_FOLDER
+            release = fetch_git_sha(dags_folder)
     if environment is None:
         environment = try_get_config("environment")
     # tags is a dictionary and cannot be fetched from env/config

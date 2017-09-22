@@ -1790,6 +1790,7 @@ class TaskInstance(Base, LoggingMixin):
         send an alert to sentry
         """
         task = self.task
+        exc_type = type(exception).__name__
         exception = str(exception)
         qualname = ".".join([self.dag_id, self.task_id])
         status = "Retrying" if is_retry else "Failed"
@@ -1799,20 +1800,26 @@ class TaskInstance(Base, LoggingMixin):
             "fingerprint": [
                 self.dag_id,
                 self.task_id,
-                self.execution_date
+                exc_type
             ],
             "extra": {
-                "try": self.try_number,
-                "max_try": self.task.retries + 1,
+                "try": [self.try_number, self.task.retries + 1],
                 "log_url": self.log_url,
                 "mark_success_url": self.mark_success_url,
                 "duration": self.duration,
-                "started": self.start_date,
-                "ended": self.end_date,
-                "execution_date": self.execution_date,
+                "started": str(self.start_date),
+                "ended": str(self.end_date),
+                "execution_date": str(self.execution_date),
                 "operator": type(self.task).__name__,
+                "task": [self.dag_id, self.task_id, str(self.execution_date)]
             },
-            "time_spent": int(self.duration * 1000)
+            "time_spent": int(self.duration * 1000),
+            "tags": {
+                "dag": self.dag_id,
+                "task": self.task_id,
+                "operator": type(self.task).__name__,
+                "error": exc_type
+            }
         }
         send_msg_to_sentry(message=message, **message_kwargs)
 
