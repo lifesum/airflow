@@ -1639,7 +1639,13 @@ class TaskInstance(Base):
                 "operator": type(self.task).__name__,
                 "task": [self.dag_id, self.task_id, str(self.execution_date)]
             },
-            "time_spent": int(self.duration * 1000)
+            "time_spent": int(self.duration * 1000),
+            "tags": {
+                "dag": self.dag_id,
+                "task": self.task_id,
+                "operator": type(self.task).__name__,
+                "error": type(exception).__name__
+            }
         }
         send_msg_to_sentry(message=message, **message_kwargs)
 
