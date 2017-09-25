@@ -1616,6 +1616,7 @@ class TaskInstance(Base):
         send an alert to sentry
         """
         task = self.task
+        exc_type = type(exception).__name__
         exception = str(exception)
         qualname = ".".join([self.dag_id, self.task_id])
         status = "Retrying" if is_retry else "Failed"
@@ -1625,7 +1626,7 @@ class TaskInstance(Base):
             "fingerprint": [
                 self.dag_id,
                 self.task_id,
-                type(exception).__name__
+                exc_type
             ],
             "extra": {
                 "try": [self.try_number, self.task.retries + 1],
@@ -1643,7 +1644,7 @@ class TaskInstance(Base):
                 "dag": self.dag_id,
                 "task": self.task_id,
                 "operator": type(self.task).__name__,
-                "error": type(exception).__name__
+                "error": exc_type
             }
         }
         send_msg_to_sentry(message=message, **message_kwargs)
