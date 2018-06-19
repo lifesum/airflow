@@ -27,6 +27,7 @@ DEFAULT_CELERY_CONFIG = {
     'task_acks_late': True,
     'task_default_queue': configuration.get('celery', 'DEFAULT_QUEUE'),
     'task_default_exchange': configuration.get('celery', 'DEFAULT_QUEUE'),
+    'task_time_limit': 8 * 3600,
     'broker_url': configuration.get('celery', 'BROKER_URL'),
     'broker_transport_options': {'visibility_timeout': 21600},
     'result_backend': configuration.get('celery', 'CELERY_RESULT_BACKEND'),
