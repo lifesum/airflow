@@ -284,6 +284,47 @@ def dag_run_status(dag_id, execution_date):
     return jsonify(info)
 
 
+@api_experimental.route('/dags/<string:dag_id>/summary', methods=['GET'])
+@requires_authentication
+def dag_tasks(dag_id):
+    from airflow.models import DagBag
+    dagbag = DagBag()
+    # Check DAG exists.
+    if dag_id not in dagbag.dags:
+        response = jsonify(error="dag_id={} not found".format(dag_id))
+        response.state_code = 400
+        return response
+
+    # Get DAG object and check Task Exists
+    dag = dagbag.get_dag(dag_id)
+    run = dag.get_last_dagrun()
+    if not run:
+        response = jsonify(error="No latest run for dag_id={}".format(dag_id))
+        response.state_code = 400
+        return response
+
+    result = {
+        'dag_id': dag_id,
+        'run_id': run.run_id,
+        'state': run.state,
+        'execution_date': run.execution_date.isoformat(),
+        'start_date': run.start_date.isoformat() if run.start_date else None,
+        'end_date': run.end_date.isoformat() if run.end_date else None,
+        'tasks': {}
+    }
+    for ti in run.get_task_instances():
+        result['tasks'][ti.task_id] = {
+            "state": ti.state,
+            "start_date": ti.start_date.isoformat() if ti.start_date else None,
+            "end_date": ti.end_date.isoformat() if ti.end_date else None,
+            "operator": ti.operator,
+            "pool": ti.pool,
+            "try_number": ti.try_number,
+            "priority_weight": ti.priority_weight
+        }
+    return jsonify(result)
+
+
 @api_experimental.route('/latest_runs', methods=['GET'])
 @requires_authentication
 def latest_dag_runs():
