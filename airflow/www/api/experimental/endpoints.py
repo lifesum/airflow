@@ -345,6 +345,63 @@ def dag_tasks(dag_id):
     return jsonify(result)
 
 
+@api_experimental.route('/dags/<string:dag_id>/stats/<int:days>', methods=['GET'])
+@requires_authentication
+def dag_stats(dag_id, days):
+    from airflow.models import DagBag
+    import datetime
+    import statistics
+    from operator import attrgetter
+    dagbag = DagBag()
+    # Check DAG exists.
+    if dag_id not in dagbag.dags:
+        response = jsonify(error="dag_id={} not found".format(dag_id))
+        response.state_code = 400
+        return response
+
+    # Get DAG object and check Task Exists
+    dag = dagbag.get_dag(dag_id)
+    last_run = dag.get_last_dagrun()
+    if not last_run:
+        response = jsonify(error="No latest run for dag_id={}".format(dag_id))
+        response.state_code = 400
+        return response
+
+    run_dates = dag.get_run_dates(start_date=last_run.execution_date -
+                                  datetime.timedelta(days=days))
+    runs = list(filter(lambda x: x.state == 'success',
+                       filter(None, map(dag.get_dagrun, run_dates))))
+
+    runtimes = [(r.end_date - r.start_date).total_seconds() for r in runs]
+    endtimes = [r.end_date.time() for r in runs]
+
+    result = {
+        'dag_id': dag_id,
+        'run_dates': [r.isoformat() for r in run_dates],
+        'median_runtime': int(statistics.median(runtimes)),
+        'mean_runtime': int(statistics.mean(runtimes)),
+        'std_runtime': int(statistics.stdev(runtimes)) if len(runtimes) > 1 else None,
+        'median_endtime': statistics.median_high(endtimes).isoformat('seconds'),
+        'tasks': {}
+    }
+    tasks = list(map(lambda x: dict(zip(map(attrgetter('task_id'), x), x)),
+                     map(lambda y: y.get_task_instances(state='success'), runs)))
+    for task_id in dag.task_ids:
+        tis = list(filter(None, map(lambda x: x.get(task_id), tasks)))
+        if tis:
+            t_runtimes = list(filter(None, map(attrgetter('duration'), tis)))
+            t_endtimes = list(map(lambda x: x.time(),
+                                  filter(None, map(attrgetter('end_date'), tis))))
+            result['tasks'][task_id] = {
+                'median_runtime': int(statistics.median(t_runtimes)),
+                'mean_runtime': int(statistics.mean(t_runtimes)),
+                'std_runtime': int(statistics.stdev(t_runtimes)) if len(t_runtimes) > 1 else None,
+                'median_endtime': statistics.median_high(t_endtimes).isoformat('seconds')
+            }
+
+    return jsonify(result)
+
+
 @api_experimental.route('/latest_runs', methods=['GET'])
 @requires_authentication
 def latest_dag_runs():
