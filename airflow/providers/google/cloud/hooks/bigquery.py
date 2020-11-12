@@ -76,7 +76,7 @@ class BigQueryHook(GoogleBaseHook, DbApiHook):
         self,
         gcp_conn_id: str = default_conn_name,
         delegate_to: Optional[str] = None,
-        use_legacy_sql: bool = True,
+        use_legacy_sql: bool = False,
         location: Optional[str] = None,
         bigquery_conn_id: Optional[str] = None,
         api_resource_configs: Optional[Dict] = None,
